@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.jotterpad.offline.android16">
+
+    <!-- Zero internet permission required: 100% pure offline architecture -->
+
+    <!-- Android 16 (API Level 36 "Baklava") Compliance:
+         1. enableOnBackInvokedCallback="true" for Predictive Back gesture animations
+         2. intentMatchingFlags="enforceIntentFilter" for Android 16 Safer Intents
+         3. pageSizeCompat="enabled" for 16 KB memory page size compatibility
+         4. No screenOrientation lock or resizeableActivity="false" for Android 16 sw600dp+ adaptive layouts -->
+    <application
+        android:allowBackup="true"
+        android:label="JotterPad Offline"
+        android:supportsRtl="true"
+        android:enableOnBackInvokedCallback="true"
+        android:intentMatchingFlags="enforceIntentFilter"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

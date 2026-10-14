@@ -1,0 +1,2545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1E242B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>JotterPad Offline (Android 16 Edition)</title>
+<style>
+  :root {
+    --bg-primary: #FAF8F5;
+    --bg-secondary: #F0ECE1;
+    --bg-surface: #FFFFFF;
+    --text-primary: #22252A;
+    --text-secondary: #686D76;
+    --text-muted: #9AA0A6;
+    --accent: #C85A32;
+    --accent-soft: rgba(200, 90, 50, 0.12);
+    --border: #E2DDD2;
+    --toolbar-bg: #F5F2EB;
+    --editor-font: 'Georgia', 'Noto Serif CJK SC', 'Source Han Serif SC', serif;
+    --title-font: 'Georgia', 'Noto Serif CJK SC', serif;
+    --editor-font-size: 16px;
+    --editor-line-height: 1.5;
+    --editor-margin: 24px;
+    --editor-ligatures: normal;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  [data-theme="dark"] {
+    --bg-primary: #14171A;
+    --bg-secondary: #1E2227;
+    --bg-surface: #252A30;
+    --text-primary: #E8EAED;
+    --text-secondary: #9AA0A6;
+    --text-muted: #5F6368;
+    --accent: #E07A5F;
+    --accent-soft: rgba(224, 122, 95, 0.18);
+    --border: #2F353D;
+    --toolbar-bg: #1B1F24;
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* Night Light (Night Vision) Orange-Yellow Overlay */
+  #night-light-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    background: rgba(255, 148, 42, 0.22);
+    mix-blend-mode: multiply;
+    display: none;
+    transition: opacity 0.25s ease;
+  }
+  [data-theme="dark"] #night-light-overlay {
+    mix-blend-mode: screen;
+    background: rgba(255, 140, 30, 0.14);
+  }
+
+  /* App Shell Layout */
+  #app {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+  }
+
+  /* Top App Bar */
+  .app-bar {
+    height: 56px;
+    background: var(--toolbar-bg);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 8px;
+    flex-shrink: 0;
+    z-index: 20;
+  }
+
+  .icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+  .icon-btn:hover, .icon-btn:active {
+    background: var(--accent-soft);
+  }
+  .icon-btn.active {
+    background: var(--accent);
+    color: #FFF;
+  }
+
+  .app-bar-title {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .app-bar-title h1 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .app-bar-subtitle {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Views */
+  .view-panel {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+  .view-panel.active {
+    display: flex;
+  }
+
+  /* Directory Breadcrumb & Action Bar */
+  .dir-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    color: var(--text-secondary);
+  }
+  .crumb {
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .crumb:hover {
+    color: var(--accent);
+  }
+  .badge-pill {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* File Directory Grid / List */
+  #file-list-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+  }
+  .file-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+    gap: 14px;
+  }
+  .file-list-mode {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .file-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+    position: relative;
+    min-height: 135px;
+  }
+  .file-list-mode .file-card {
+    min-height: auto;
+    flex-direction: row;
+    align-items: center;
+    padding: 12px 16px;
+  }
+  .file-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  }
+  .file-card.selected {
+    border: 2px solid var(--accent);
+    background: var(--accent-soft);
+  }
+  .file-ext-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    width: fit-content;
+  }
+  .ext-md { background: #E3F2FD; color: #1565C0; }
+  .ext-fountain { background: #FCE4EC; color: #AD1457; }
+  .ext-tex { background: #E8F5E9; color: #2E7D32; }
+  .ext-txt { background: #EFEBE9; color: #4E342E; }
+  .ext-folder { background: #FFF8E1; color: #F57F17; }
+
+  .file-card-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 6px;
+    word-break: break-word;
+  }
+  .file-card-preview {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.4;
+    margin-bottom: 8px;
+    font-family: var(--editor-font);
+  }
+  .file-list-mode .file-card-preview {
+    display: none;
+  }
+  .file-card-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Floating Action Button */
+  .fab {
+    position: absolute;
+    right: 20px;
+    bottom: 24px;
+    width: 56px;
+    height: 56px;
+    border-radius: 28px;
+    background: var(--accent);
+    color: #FFF;
+    border: none;
+    font-size: 26px;
+    box-shadow: 0 6px 16px rgba(200, 90, 50, 0.38);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 15;
+  }
+
+  /* Search & Replace Bar */
+  #find-replace-bar {
+    display: none;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 12px;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  #find-replace-bar.active {
+    display: flex;
+  }
+  .compact-input {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    flex: 1;
+    min-width: 110px;
+  }
+  .small-btn {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .small-btn.primary {
+    background: var(--accent);
+    color: #FFF;
+    border-color: var(--accent);
+  }
+
+  /* Main Editor Area */
+  #editor-workspace {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+  }
+
+  #editor-scroll-container {
+    flex: 1;
+    height: 100%;
+    overflow-y: auto;
+    padding: 20px var(--editor-margin) 120px var(--editor-margin);
+    scroll-behavior: smooth;
+    position: relative;
+  }
+
+  /* Typewriter Mode Padding & Focus Effect */
+  #editor-scroll-container.typewriter-active {
+    padding-top: 42vh;
+    padding-bottom: 48vh;
+  }
+  .typewriter-guide {
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 44%;
+    height: 38px;
+    border-top: 1px dashed var(--accent);
+    border-bottom: 1px dashed var(--accent);
+    background: var(--accent-soft);
+    pointer-events: none;
+    z-index: 2;
+    opacity: 0.45;
+  }
+  #editor-workspace.typewriter-on .typewriter-guide {
+    display: block;
+  }
+
+  /* Raw Source Textarea & WYSIWYG Live Canvas */
+  #source-textarea {
+    width: 100%;
+    min-height: 75vh;
+    background: transparent;
+    color: var(--text-primary);
+    border: none;
+    outline: none;
+    resize: none;
+    font-family: var(--editor-font);
+    font-size: var(--editor-font-size);
+    line-height: var(--editor-line-height);
+    font-variant-ligatures: var(--editor-ligatures);
+    user-select: text;
+    padding: 0;
+    margin: 0;
+    max-width: 780px;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+  }
+
+  #wysiwyg-preview {
+    max-width: 780px;
+    margin: 0 auto;
+    font-family: var(--editor-font);
+    font-size: var(--editor-font-size);
+    line-height: var(--editor-line-height);
+    font-variant-ligatures: var(--editor-ligatures);
+    user-select: text;
+    display: none;
+    padding-bottom: 80px;
+  }
+  #wysiwyg-preview h1, #wysiwyg-preview h2, #wysiwyg-preview h3 {
+    font-family: var(--title-font);
+    margin-top: 1.2em;
+    margin-bottom: 0.5em;
+  }
+  #wysiwyg-preview blockquote {
+    border-left: 4px solid var(--accent);
+    margin: 1em 0;
+    padding: 0.4em 1em;
+    background: var(--bg-secondary);
+    border-radius: 0 8px 8px 0;
+    font-style: italic;
+  }
+  #wysiwyg-preview pre {
+    background: var(--bg-secondary);
+    padding: 12px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88em;
+    border: 1px solid var(--border);
+  }
+  #wysiwyg-preview code {
+    background: var(--bg-secondary);
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.9em;
+  }
+  #wysiwyg-preview table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+  }
+  #wysiwyg-preview th, #wysiwyg-preview td {
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+  }
+  #wysiwyg-preview th {
+    background: var(--bg-secondary);
+    font-weight: 600;
+  }
+  .page-break-visual {
+    border-top: 2px dashed var(--text-muted);
+    text-align: center;
+    margin: 24px 0;
+    position: relative;
+  }
+  .page-break-visual span {
+    background: var(--bg-primary);
+    padding: 0 10px;
+    font-size: 11px;
+    color: var(--text-muted);
+    position: relative;
+    top: -10px;
+  }
+  .math-chip {
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-family: 'Cambria Math', 'Times New Roman', serif;
+    font-style: italic;
+    display: inline-block;
+  }
+  .math-block {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    padding: 12px;
+    border-radius: 8px;
+    text-align: center;
+    font-family: 'Cambria Math', 'Times New Roman', serif;
+    font-size: 1.1em;
+    margin: 12px 0;
+  }
+
+  /* Fountain Screenplay Styles in Preview */
+  .fountain-scene {
+    font-weight: 700;
+    text-transform: uppercase;
+    background: var(--bg-secondary);
+    padding: 6px 10px;
+    border-left: 4px solid var(--accent);
+    margin: 18px 0 10px 0;
+    letter-spacing: 0.5px;
+  }
+  .fountain-character {
+    text-align: center;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin: 14px 0 2px 0;
+    letter-spacing: 0.8px;
+  }
+  .fountain-parenthetical {
+    text-align: center;
+    font-style: italic;
+    color: var(--text-secondary);
+    margin: 0 auto 2px auto;
+    max-width: 260px;
+  }
+  .fountain-dialogue {
+    max-width: 420px;
+    margin: 0 auto 12px auto;
+  }
+  .fountain-dual-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 12px 0;
+    background: var(--bg-secondary);
+    padding: 10px;
+    border-radius: 8px;
+  }
+  .fountain-transition {
+    text-align: right;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin: 12px 0;
+    color: var(--text-secondary);
+  }
+  .fountain-lyric {
+    text-align: center;
+    font-style: italic;
+    color: var(--accent);
+    margin: 6px 0;
+  }
+
+  /* Fountain Autocomplete Popup */
+  #fountain-prompt-popup {
+    position: fixed;
+    left: 20px;
+    bottom: 64px;
+    background: var(--bg-surface);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    padding: 6px;
+    display: none;
+    z-index: 50;
+    max-width: 320px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .prompt-chip {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .prompt-chip:hover {
+    background: var(--accent);
+    color: #FFF;
+  }
+
+  /* Extended Scrollable Bottom Formatting Toolbar */
+  .bottom-toolbar {
+    height: 48px;
+    background: var(--toolbar-bg);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    padding: 0 8px;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .bottom-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+  .tool-chip {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .tool-chip:active, .tool-chip.active {
+    background: var(--accent);
+    color: #FFF;
+    border-color: var(--accent);
+  }
+
+  /* Modals & Drawers */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.48);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .modal-backdrop.open {
+    display: flex;
+  }
+  .modal-card {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 540px;
+    max-height: 86vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.28);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .modal-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 600;
+    font-size: 16px;
+  }
+  .modal-body {
+    padding: 16px 18px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .modal-footer {
+    padding: 12px 18px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  /* Statistics 6-Metric Grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .stat-box {
+    background: var(--bg-secondary);
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  .stat-val {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  /* Form Rows */
+  .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .form-row label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .form-row input, .form-row select, .form-row textarea {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  .yaml-row {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr 1.5fr auto;
+    gap: 6px;
+    align-items: center;
+  }
+
+  /* Print CSS for Offline Draft PDF Export */
+  @media print {
+    .app-bar, .bottom-toolbar, #find-replace-bar, .fab, .modal-backdrop, #night-light-overlay {
+      display: none !important;
+    }
+    body, html, #app, #editor-view, #editor-workspace, #editor-scroll-container {
+      height: auto !important;
+      overflow: visible !important;
+      background: #FFF !important;
+      color: #000 !important;
+      padding: 0 !important;
+    }
+    #source-textarea {
+      display: none !important;
+    }
+    #wysiwyg-preview {
+      display: block !important;
+      max-width: 100% !important;
+    }
+    .page-break-visual {
+      page-break-after: always;
+      border: none;
+    }
+    .page-break-visual span {
+      display: none;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- Night Light (Night Vision) Warm Tint Filter -->
+<div id="night-light-overlay"></div>
+
+<div id="app">
+  <!-- ================= VIEW 1: LOCAL FILE DIRECTORY ================= -->
+  <div id="directory-view" class="view-panel active">
+    <div class="app-bar">
+      <button class="icon-btn" onclick="openModal('settings-modal')" title="Me / 外观与字体设置">☰</button>
+      <div class="app-bar-title">
+        <h1>JotterPad 离线工作台</h1>
+        <div class="app-bar-subtitle">Android 16 适配版 · 本地 UTF-8 私有存储</div>
+      </div>
+      <button class="icon-btn" onclick="toggleDirViewMode()" id="btn-view-mode" title="切换缩略图/列表视图">⊞</button>
+      <button class="icon-btn" onclick="triggerImportFile()" title="导入 .txt/.md/.fountain/.fdx/.bib">📥</button>
+      <button class="icon-btn" onclick="createNewFolderPrompt()" title="新建文件夹">📁+</button>
+      <button class="icon-btn" onclick="openModal('snapshots-modal')" title="本地版本快照恢复">🕒</button>
+    </div>
+
+    <div class="dir-header">
+      <div class="breadcrumbs" id="breadcrumbs-bar"></div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span class="badge-pill" id="file-count-badge">0 个文件</span>
+        <button class="small-btn" id="btn-paste-file" style="display:none;" onclick="pasteCopiedFile()">粘贴文件</button>
+      </div>
+    </div>
+
+    <div id="file-list-container">
+      <div id="file-grid-box" class="file-grid"></div>
+    </div>
+
+    <button class="fab" onclick="openModal('new-file-modal')" title="新建文档">+</button>
+    <input type="file" id="hidden-file-input" accept=".txt,.md,.markdown,.fountain,.fdx,.tex,.bib" style="display:none" onchange="handleExternalFileImport(event)">
+    <input type="file" id="hidden-font-input" accept=".ttf,.otf,.woff,.woff2" style="display:none" onchange="handleCustomFontUpload(event)">
+  </div>
+
+  <!-- ================= VIEW 2: IMMERSIVE EDITOR ================= -->
+  <div id="editor-view" class="view-panel">
+    <div class="app-bar">
+      <button class="icon-btn" onclick="saveAndExitEditor()" title="保存并返回目录">←</button>
+      <button class="icon-btn" id="btn-readonly" onclick="toggleReadOnlyMode()" title="✓ 只读/预览模式切换">✓</button>
+      <div class="app-bar-title" onclick="renameCurrentFilePrompt()" style="cursor:pointer;">
+        <h1 id="editor-file-title">未命名文档.md</h1>
+        <div class="app-bar-subtitle" id="editor-live-counter">0 词 · 0 字符 · 离线自动快照已开启</div>
+      </div>
+      <button class="icon-btn" id="btn-typewriter" onclick="toggleTypewriterMode()" title="打字机滚动模式">⌨</button>
+      <button class="icon-btn" id="btn-source-mode" onclick="toggleSourceMode()" title="</> 源码/所见即所得切换">&lt;/&gt;</button>
+      <button class="icon-btn" onclick="toggleFindReplaceBar()" title="全文查找与替换">🔍</button>
+      <button class="icon-btn" onclick="openOutlineModal()" title="大纲快速跳转 / 剧本场次重排">📑</button>
+      <button class="icon-btn" onclick="openStatsModal()" title="Word Character Counter 6维统计与可读性">📊</button>
+      <button class="icon-btn" onclick="openModal('export-modal')" title="离线打印 PDF 与多格式导出">📤</button>
+    </div>
+
+    <!-- Find & Replace Bar -->
+    <div id="find-replace-bar">
+      <input type="text" id="find-input" class="compact-input" placeholder="查找关键词..." oninput="highlightFindMatches()">
+      <input type="text" id="replace-input" class="compact-input" placeholder="替换为...">
+      <span id="find-count-label" style="font-size:12px; color:var(--text-secondary);">0 处</span>
+      <button class="small-btn" onclick="replaceNextMatch()">替换</button>
+      <button class="small-btn primary" onclick="replaceAllMatches()">全部替换</button>
+      <button class="small-btn" onclick="toggleFindReplaceBar()">✕</button>
+    </div>
+
+    <!-- Main Editor Canvas -->
+    <div id="editor-workspace">
+      <div class="typewriter-guide"></div>
+      <div id="editor-scroll-container">
+        <textarea id="source-textarea" placeholder="在此开始无干扰沉浸式创作... 支持 Markdown、Fountain 剧本语法（输入 . 触发场景提示，输入 @ 触发角色补全）、TeX 公式 ($E=mc^2$) 与 mhChem 化学式 (\ce{CO2 + C -> 2 CO})" oninput="onEditorInput()" onkeydown="handleEditorKeydown(event)" onclick="syncTypewriterScroll()"></textarea>
+        <div id="wysiwyg-preview"></div>
+      </div>
+    </div>
+
+    <!-- Fountain Auto-Complete Floating Prompt -->
+    <div id="fountain-prompt-popup"></div>
+
+    <!-- Extended Scrollable Bottom Formatting Toolbar -->
+    <div class="bottom-toolbar">
+      <button class="tool-chip" onclick="openModal('insert-modal')">＋ 插入组件</button>
+      <button class="tool-chip" onclick="wrapSelection('**', '**')"><b>B</b> 加粗</button>
+      <button class="tool-chip" onclick="wrapSelection('*', '*')"><i>I</i> 斜体</button>
+      <button class="tool-chip" onclick="wrapSelection('~~', '~~')"><s>S</s> 删除线</button>
+      <button class="tool-chip" onclick="insertLinePrefix('# ')">H1</button>
+      <button class="tool-chip" onclick="insertLinePrefix('## ')">H2</button>
+      <button class="tool-chip" onclick="insertLinePrefix('### ')">H3</button>
+      <button class="tool-chip" onclick="insertLinePrefix('> ')">❝ 引用</button>
+      <button class="tool-chip" onclick="insertLinePrefix('- [ ] ')">☑ 任务</button>
+      <button class="tool-chip" onclick="insertLinePrefix('* ')">• 列表</button>
+      <button class="tool-chip" onclick="insertLinePrefix('1. ')">1. 编号</button>
+      <button class="tool-chip" onclick="wrapSelection('$', '$')">∑ 行内公式</button>
+      <button class="tool-chip" onclick="wrapSelection('$\\ce{', '}$')">⚗ 化学式</button>
+      <button class="tool-chip" onclick="openYamlOrFountainProps()">⚙ YAML / 剧本扉页</button>
+      <button class="tool-chip" onclick="openModal('bibtex-modal')">📚 BibTeX 文献</button>
+      <button class="tool-chip" onclick="takeManualSnapshot()">📸 存快照</button>
+      <button class="tool-chip" onclick="editorUndo()">↶ 撤销</button>
+      <button class="tool-chip" onclick="editorRedo()">↷ 重做</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL 1: NEW FILE ================= -->
+<div class="modal-backdrop" id="new-file-modal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span>新建本地离线文档</span>
+      <button class="icon-btn" onclick="closeModal('new-file-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>文件名</label>
+        <input type="text" id="new-file-name" value="未命名文稿">
+      </div>
+      <div class="form-row">
+        <label>文档格式与语法引擎</label>
+        <select id="new-file-ext">
+          <option value="md">Markdown 文档 (.md) — 支持 WYSIWYG、表格、TeX 公式、YAML</option>
+          <option value="fountain">Fountain 专业剧本 (.fountain) — 支持场次/角色提示、双人对白、导出 FDX</option>
+          <option value="txt">纯本文档 (.txt) — 极简无格式或轻量 Markdown 标记</option>
+          <option value="tex">LaTeX 学术手稿 (.tex Beta) — 支持导言区配置与源码编写</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>离线初始骨架（可选）</label>
+        <select id="new-file-scaffold">
+          <option value="blank">空白文档</option>
+          <option value="novel">小说章节骨架（含 YAML 元数据、章节标题与首字排版）</option>
+          <option value="screenplay">Fountain 电影/音乐剧标准剧本骨架（含扉页、场次、双人对白）</option>
+          <option value="academic">学术论文骨架（含 TeX 数学公式、mhChem 化学式、表格与 BibTeX 引用）</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="small-btn" onclick="closeModal('new-file-modal')">取消</button>
+      <button class="small-btn primary" onclick="confirmCreateNewFile()">立即创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL 2: APPEARANCE, TYPOGRAPHY & NIGHT LIGHT ================= -->
+<div class="modal-backdrop" id="settings-modal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span>Me › 外观、字体与夜间护眼设置 (离线全局)</span>
+      <button class="icon-btn" onclick="closeModal('settings-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>界面主题 (Theme)</label>
+        <select id="setting-theme" onchange="applyTypographySettings()">
+          <option value="light">日间羊皮纸亮色 (Light Theme)</option>
+          <option value="dark">沉浸暗黑模式 (Dark Theme)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Night Light 护眼夜览滤光 (橙黄暖色调防蓝光)</label>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <input type="checkbox" id="setting-nightlight" onchange="applyTypographySettings()">
+          <span style="font-size:13px;">开启 Night Vision 暖色护眼层</span>
+          <input type="range" id="setting-nightlight-intensity" min="10" max="45" value="22" oninput="applyTypographySettings()" style="flex:1;">
+        </div>
+      </div>
+      <div class="form-row">
+        <label>正文与标题字体族 (Typography Font Family)</label>
+        <select id="setting-font" onchange="applyTypographySettings()">
+          <option value="'Georgia', 'Noto Serif CJK SC', serif">衬线文学体 (Georgia / 思源宋体)</option>
+          <option value="-apple-system, 'Segoe UI', 'Noto Sans SC', sans-serif">现代无衬线体 (Roboto / 思源黑体)</option>
+          <option value="'Courier New', 'JetBrains Mono', monospace">编剧等宽打字机体 (Courier Prime / 等宽)</option>
+          <option value="CustomUploadedFont, serif">手机本地自定义字体 (Custom Font .ttf/.otf)</option>
+        </select>
+        <button class="small-btn" style="margin-top:4px; width:fit-content;" onclick="document.getElementById('hidden-font-input').click()">📂 从手机存储加载自定义 .ttf / .otf 字体文件</button>
+        <span id="custom-font-status" style="font-size:11px; color:var(--accent);"></span>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+        <div class="form-row">
+          <label>字号 (10–18)</label>
+          <select id="setting-fontsize" onchange="applyTypographySettings()">
+            <option value="12px">12 pt</option>
+            <option value="14px">14 pt</option>
+            <option value="16px" selected>16 pt (标准)</option>
+            <option value="18px">18 pt (大字)</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>行距 (Line Spacing)</label>
+          <select id="setting-linespacing" onchange="applyTypographySettings()">
+            <option value="1.0">x1.0 紧凑</option>
+            <option value="1.15">x1.15 适中</option>
+            <option value="1.5" selected>x1.5 舒适</option>
+            <option value="2.0">x2.0 双倍</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>页边距 (Margin)</label>
+          <select id="setting-margin" onchange="applyTypographySettings()">
+            <option value="14px">Narrow (窄)</option>
+            <option value="24px" selected>Book (书本)</option>
+            <option value="48px">Wide (宽)</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label style="display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="setting-ligatures" checked onchange="applyTypographySettings()">
+          启用西文排版连字 (Enable Ligatures)
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="small-btn primary" onclick="closeModal('settings-modal')">完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL 3: STRUCTURED INSERT (+) ================= -->
+<div class="modal-backdrop" id="insert-modal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span>＋ 插入结构化元素与专业代码块</span>
+      <button class="icon-btn" onclick="closeModal('insert-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>1. Markdown 表格生成器 (Markdown Table Generator)</label>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <input type="number" id="tbl-rows" value="3" min="1" max="20" style="width:65px;" placeholder="行数"> 行 ×
+          <input type="number" id="tbl-cols" value="3" min="1" max="10" style="width:65px;" placeholder="列数"> 列
+          <select id="tbl-align" style="flex:1;">
+            <option value="left">左对齐 (:---)</option>
+            <option value="center">居中对齐 (:---:)</option>
+            <option value="right">右对齐 (---:)</option>
+          </select>
+          <button class="small-btn primary" onclick="insertGeneratedTable()">插入表格</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>2. 学术公式、脚注与分页符</label>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          <button class="small-btn" onclick="insertSnippet('\n$$\n\\int_{0}^{\\infty} e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}\n$$\n')">块级 TeX 公式</button>
+          <button class="small-btn" onclick="insertSnippet('$\\ce{6CO2 + 6H2O ->[h\\nu] C6H12O6 + 6O2}$')">mhChem 化学方程式</button>
+          <button class="small-btn" onclick="insertFootnotePrompt()">插入脚注 (Footnote)</button>
+          <button class="small-btn" onclick="insertSnippet('\n\n\\pagebreak\n\n')">插入手动分页符 (Page Break)</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>3. 专业代码块声明 (Mermaid / Markmap / ABC 五线谱 / ChordPro / SMILES)</label>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          <button class="small-btn" onclick="insertCodeBlock('mermaid', 'renderAs=mermaid', 'graph TD\n  A[创意构思] --> B(离线初稿)\n  B --> C{导出格式}\n  C -->|Draft| D[本地PDF]\n  C -->|DOCX/FDX| E[本地工程]')">Mermaid 流程图</button>
+          <button class="small-btn" onclick="insertCodeBlock('markmap', 'renderAs=markmap', '# 核心主题\n## 第一幕：铺垫\n## 第二幕：冲突\n## 第三幕：高潮')">Markmap 思维导图</button>
+          <button class="small-btn" onclick="insertCodeBlock('abc', 'renderAs=abc', 'X: 1\nT: Nocturne Theme\nM: 4/4\nL: 1/4\nK: C\nC D E F | G A B c |')">ABC 五线谱</button>
+          <button class="small-btn" onclick="insertCodeBlock('chordpro', 'renderAs=chordpro', '{title: 民谣练习曲}\n[C]微风吹过[G]安静的[Am]书桌[F]')">ChordPro 吉他谱</button>
+          <button class="small-btn" onclick="insertCodeBlock('smiles', 'renderAs=openBabel', 'CC(=O)OC1=CC=CC=C1C(=O)O')">SMILES 分子式</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>4. Fountain 剧本专用元素快速插入</label>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          <button class="small-btn" onclick="insertSnippet('\nINT. 咖啡馆 - NIGHT\n\n')">场景标题 (INT./EXT.)</button>
+          <button class="small-btn" onclick="insertSnippet('\n@林夏\n（低头翻阅手稿）\n这就是我们要找的离线版本。\n')">角色与对白</button>
+          <button class="small-btn" onclick="insertSnippet('\n@林夏\n我们现在出发！\n\n@陈默 ^\n等等我！\n')">双人同屏对白 (^)</button>
+          <button class="small-btn" onclick="insertSnippet('\n> CUT TO:\n')">剧本转场 (CUT TO:)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL 4: YAML FRONT MATTER / FOUNTAIN PROPERTIES ================= -->
+<div class="modal-backdrop" id="yaml-modal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span id="yaml-modal-title">YAML Front Matter 元数据编辑器</span>
+      <button class="icon-btn" onclick="closeModal('yaml-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px; color:var(--text-secondary);">
+        支持 String、Number、Boolean、Array、Object、Null 类型键值定义（用于控制电子书封面、标题、作者、水印及剧本扉页属性）：
+      </div>
+      <div id="yaml-rows-container" style="display:flex; flex-direction:column; gap:8px;"></div>
+      <button class="small-btn" style="width:fit-content;" onclick="addYamlRow('', 'String', '')">＋ 新增属性字段</button>
+    </div>
+    <div class="modal-footer">
+      <button class="small-btn" onclick="closeModal('yaml-modal')">取消</button>
+      <button class="small-btn primary" onclick="saveYamlToDocument()">保存至文档头部</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL 5: WORD CHARACTER COUNTER & READABILITY INSPECTOR ================= -->
+<div class="modal-backdrop" id="stats-modal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span>📊 实时写作统计与可读性检测 (Readability Inspector)</span>
+      <button class="icon-btn" onclick="closeModal('stats-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="stats-grid" id="stats-boxes"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="small-btn primary" onclick="closeModal('stats-modal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL 6: OUTLINE & FOUNTAIN SCENE MANAGER ================= -->
+<div class="modal-backdrop" id="outline-modal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span>📑 文档大纲快速跳转与剧本场次重排</span>
+      <button class="icon-btn" onclick="closeModal('outline-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="outline-list-body"></div>
+  </div>
+</div>
+
+<!-- ================= MODAL 7: VERSION CONTROL & SNAPSHOTS ================= -->
+<div class="modal-backdrop" id="snapshots-modal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span>🕒 本地版本控制与历史快照恢复 (Version Control)</span>
+      <button class="icon-btn" onclick="closeModal('snapshots-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="snapshots-list-body"></div>
+  </div>
+</div>
+
+<!-- ================= MODAL 8: BIBTEX CITATION MANAGER ================= -->
+<div class="modal-backdrop" id="bibtex-modal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span>📚 BibTeX 本地文献管理与文内引用插入</span>
+      <button class="icon-btn" onclick="closeModal('bibtex-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>粘贴或编辑 BibTeX 条目 (.bib)</label>
+        <textarea id="bibtex-raw-input" rows="5" style="font-family:monospace; font-size:12px;">@article{shannon1948,
+  author = {Shannon, Claude E.},
+  title = {A Mathematical Theory of Communication},
+  journal = {Bell System Technical Journal},
+  year = {1948}
+}
+@book{mckee1997,
+  author = {McKee, Robert},
+  title = {Story: Substance, Structure, Style},
+  publisher = { ReganBooks },
+  year = {1997}
+}</textarea>
+      </div>
+      <button class="small-btn" onclick="parseBibtexEntries()">解析文献库</button>
+      <div id="bibtex-parsed-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL 9: OFFLINE EXPORT & DRAFT PDF PRINT ================= -->
+<div class="modal-backdrop" id="export-modal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span>📤 离线导出与草稿 PDF 打印 (100% 本地转换)</span>
+      <button class="icon-btn" onclick="closeModal('export-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="stat-box">
+        <div style="font-weight:600; margin-bottom:6px;">1. 离线草稿 PDF 打印 (Offline Draft PDF)</div>
+        <div style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">
+          无需互联网连接，直接渲染基础富文本、TeX 公式、mhChem 化学式、分页符与表格：
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <label style="font-size:12px;"><input type="checkbox" id="pdf-include-wordcount" checked> 顶部附带字数统计</label>
+          <button class="small-btn primary" onclick="printOfflineDraftPdf()">🖨 调用系统打印 / 存为 PDF</button>
+        </div>
+      </div>
+
+      <div class="stat-box">
+        <div style="font-weight:600; margin-bottom:6px;">2. 专业办公与影视工程格式本地生成</div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+          <button class="small-btn primary" onclick="exportToDocx()">📄 导出 Word (.docx)</button>
+          <button class="small-btn primary" onclick="exportToFdx()">🎬 导出 Final Draft (.fdx)</button>
+          <button class="small-btn primary" onclick="exportToEpub()">📕 导出电子书 (.epub)</button>
+          <button class="small-btn primary" onclick="exportToLatexZip()">📦 导出 LaTeX 工程 (.zip)</button>
+        </div>
+      </div>
+
+      <div class="stat-box">
+        <div style="font-weight:600; margin-bottom:6px;">3. 纯文本源码与 HTML 富文本分享</div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+          <button class="small-btn" onclick="exportPlainSource('txt')">下载 .txt</button>
+          <button class="small-btn" onclick="exportPlainSource('md')">下载 .md</button>
+          <button class="small-btn" onclick="exportPlainSource('fountain')">下载 .fountain</button>
+          <button class="small-btn" onclick="copyAsHtmlToClipboard()">📋 复制为 HTML (Copy as HTML)</button>
+          <button class="small-btn" onclick="shareHtmlViaSystem()">🔗 分享至第三方应用</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================================
+   1. STATE & INITIAL DEMO FILES (100% OFFLINE LOCALSTORAGE PERSISTENCE)
+   ============================================================================ */
+const STORAGE_KEY = 'jotterpad_offline_v16_state';
+
+const DEFAULT_FILES = [
+  {
+    id: 'doc_md_demo',
+    name: '山海回响_第一章.md',
+    ext: 'md',
+    folder: '/',
+    updatedAt: '2026-10-13 22:30',
+    yaml: [
+      { key: 'title', type: 'String', value: '山海回响：离线创作者手记' },
+      { key: 'author', type: 'String', value: '林夏' },
+      { key: 'publisher', type: 'String', value: 'JotterPad Offline Press' },
+      { key: 'watermark', type: 'String', value: 'DRAFT' }
+    ],
+    content: `# 第一章：云层之上的飞行模式
+
+当飞机进入巡航高度，舱内灯光调暗为柔和的琥珀色。在完全断开网络的万米高空，**真正的创作才刚刚开始**。
+
+> 写作不需要喧嚣的云端通知，只需要一行始终居中的光标与干净的画布。
+
+## 1.1 结构化清单与实验记录
+
+在旅途中整理今日的创作任务清单：
+
+- [x] 开启 **打字机滚动模式 (Typewriter Scrolling)** 保持视线居中
+- [x] 开启 **Night Light 护眼夜览** 缓解暗光视觉疲劳
+- [ ] 完成第二幕剧本场次重排并导出为 \`.docx\` 与 \`.epub\`
+
+### 核心物理与化学笔记
+
+行内质能方程写作 $E = mc^2$，而光合作用的化学反应式可通过 mhChem 语法直接离线渲染：
+
+$$\\ce{6CO2 + 6H2O ->[光照][叶绿素] C6H12O6 + 6O2 ^}$$
+
+| 章节编号 | 场景地点 | 预计字数 | 完成状态 |
+| :--- | :---: | ---: | :---: |
+| 第一幕 | 离岛灯塔 | 3,200 | 已完稿 |
+| 第二幕 | 地下档案馆 | 4,500 | 修订中 |
+| 第三幕 | 破晓甲板 | 2,800 | 待撰写 |
+
+\\pagebreak
+
+## 1.2 尾注与文献引用
+
+信息熵理论奠定了现代通信的数学基础[@shannon1948]，而故事结构则依托于人物在压力下的弧光选择[@mckee1997][^1]。
+
+[^1]: 参见本地快照历史版本控制记录。`
+  },
+  {
+    id: 'doc_fountain_demo',
+    name: '夜航船_剧本初稿.fountain',
+    ext: 'fountain',
+    folder: '/',
+    updatedAt: '2026-10-13 22:35',
+    yaml: [
+      { key: 'Title', type: 'String', value: '夜航船 (NIGHT VOYAGER)' },
+      { key: 'Credit', type: 'String', value: 'Written by' },
+      { key: 'Author', type: 'String', value: '林夏' },
+      { key: 'Draft date', type: 'String', value: '2026-10-13' }
+    ],
+    content: `# ACT I
+## SCENE 1
+
+INT. 机舱客舱 - NIGHT
+
+舷窗外是浓墨般的夜空。林夏（30岁，编剧）戴着降噪耳机，膝上放着一台开启离线模式的平板。
+
+!突然，机身轻微颠簸，头顶阅读灯闪烁了一下。
+
+@林夏
+（轻声自语）
+只要本地快照还在，哪怕飞越太平洋也不用担心丢稿。
+
+@乘务长
+（微笑递来温水）
+需要帮您调暗舷窗吗？
+
+@林夏
+谢谢，我已经开了 Night Light 护眼模式。
+
+@乘务长 ^
+祝您今晚创作顺利！
+
+~窗外的星河静静流淌，像一行行未完的诗句。
+
+> CUT TO:
+
+## SCENE 2
+
+EXT. 港口甲板 - DAWN
+
+晨雾散去，海平线上跃出第一缕金光。`
+  },
+  {
+    id: 'doc_tex_demo',
+    name: '量子通信模型手稿.tex',
+    ext: 'tex',
+    folder: '/',
+    updatedAt: '2026-10-13 22:15',
+    yaml: [],
+    content: `\\documentclass[12pt,a4paper]{article}
+\\usepackage{xeCJK}
+\\usepackage{amsmath}
+\\title{离散信道下的低延迟同步模型}
+\\author{Research Lab}
+\\begin{document}
+\\maketitle
+
+\\section{引言}
+在移动弱网与离线环境中，本地优先（Local-First）存储架构能够显著降低写入延迟：
+$$H(X) = -\\sum_{i=1}^{n} P(x_i) \\log_2 P(x_i)$$
+
+\\end{document}`
+  }
+];
+
+let state = {
+  currentFolder: '/',
+  folders: ['/', '/小说手稿', '/剧本工程'],
+  files: [],
+  snapshots: [],
+  activeFileId: null,
+  dirViewMode: 'grid', // 'grid' | 'list'
+  readOnlyMode: false,
+  sourceMode: true,    // true = edit source, false = WYSIWYG rendered view
+  typewriterMode: false,
+  copiedFileId: null,
+  undoStack: [],
+  redoStack: [],
+  settings: {
+    theme: 'light',
+    nightLight: false,
+    nightLightIntensity: 22,
+    fontFamily: "'Georgia', 'Noto Serif CJK SC', serif",
+    fontSize: '16px',
+    lineSpacing: '1.5',
+    margin: '24px',
+    ligatures: true
+  }
+};
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      state = Object.assign({}, state, parsed);
+    } else {
+      state.files = DEFAULT_FILES;
+      saveState();
+    }
+  } catch (e) {
+    state.files = DEFAULT_FILES;
+  }
+  applyTypographySettings();
+  renderDirectory();
+  parseBibtexEntries();
+}
+
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.warn('LocalStorage save warning:', e);
+  }
+}
+
+/* ============================================================================
+   2. DIRECTORY MANAGEMENT, FOLDERS, IMPORT (.FDX -> .FOUNTAIN) & SNAPSHOTS
+   ============================================================================ */
+function renderDirectory() {
+  const crumbsBar = document.getElementById('breadcrumbs-bar');
+  const parts = state.currentFolder === '/' ? [''] : state.currentFolder.split('/');
+  let htmlCrumbs = `<span class="crumb" onclick="navigateToFolder('/')">🏠 本地存储 (Local)</span>`;
+  let acc = '';
+  for (let i = 1; i < parts.length; i++) {
+    if (!parts[i]) continue;
+    acc += '/' + parts[i];
+    htmlCrumbs += ` <span>›</span> <span class="crumb" onclick="navigateToFolder('${acc}')">${parts[i]}</span>`;
+  }
+  crumbsBar.innerHTML = htmlCrumbs;
+
+  const box = document.getElementById('file-grid-box');
+  box.className = state.dirViewMode === 'grid' ? 'file-grid' : 'file-list-mode';
+
+  const childFolders = state.folders.filter(f => {
+    if (f === state.currentFolder) return false;
+    const parent = f.substring(0, f.lastIndexOf('/')) || '/';
+    return parent === state.currentFolder;
+  });
+
+  const childFiles = state.files.filter(f => (f.folder || '/') === state.currentFolder);
+  document.getElementById('file-count-badge').textContent = `${childFolders.length} 文件夹 · ${childFiles.length} 文档`;
+  document.getElementById('btn-paste-file').style.display = state.copiedFileId ? 'inline-block' : 'none';
+
+  let cardsHtml = '';
+  childFolders.forEach(folderPath => {
+    const folderName = folderPath.substring(folderPath.lastIndexOf('/') + 1);
+    cardsHtml += `
+      <div class="file-card" onclick="navigateToFolder('${folderPath}')">
+        <div>
+          <span class="file-ext-tag ext-folder">FOLDER</span>
+          <div class="file-card-title">📁 ${escapeHtml(folderName)}</div>
+        </div>
+        <div class="file-card-meta">
+          <span>本地目录</span>
+        </div>
+      </div>`;
+  });
+
+  childFiles.forEach(file => {
+    const extClass = 'ext-' + (file.ext || 'txt');
+    const previewText = (file.content || '').replace(/[#*>`~]/g, '').slice(0, 90);
+    cardsHtml += `
+      <div class="file-card" onclick="openFileInEditor('${file.id}')">
+        <div>
+          <span class="file-ext-tag ${extClass}">.${escapeHtml(file.ext)}</span>
+          <div class="file-card-title">${escapeHtml(file.name)}</div>
+          <div class="file-card-preview">${escapeHtml(previewText)}</div>
+        </div>
+        <div class="file-card-meta" onclick="event.stopPropagation()">
+          <span>${file.updatedAt || ''}</span>
+          <div style="display:flex; gap:4px;">
+            <button class="small-btn" onclick="copyFileToClipboard('${file.id}')" title="复制移动">📋</button>
+            <button class="small-btn" onclick="deleteFileById('${file.id}')" title="删除">🗑</button>
+          </div>
+        </div>
+      </div>`;
+  });
+
+  box.innerHTML = cardsHtml || `<div style="grid-column:1/-1; text-align:center; padding:40px; color:var(--text-secondary);">当前文件夹为空，点击右下角 + 新建文档</div>`;
+}
+
+function navigateToFolder(path) {
+  state.currentFolder = path;
+  renderDirectory();
+}
+
+function toggleDirViewMode() {
+  state.dirViewMode = state.dirViewMode === 'grid' ? 'list' : 'grid';
+  document.getElementById('btn-view-mode').textContent = state.dirViewMode === 'grid' ? '⊞' : '☰';
+  saveState();
+  renderDirectory();
+}
+
+function createNewFolderPrompt() {
+  const name = prompt('请输入新建本地文件夹名称：', '新建章节目录');
+  if (!name || !name.trim()) return;
+  const clean = name.trim().replace(/\//g, '');
+  const newPath = (state.currentFolder === '/' ? '' : state.currentFolder) + '/' + clean;
+  if (!state.folders.includes(newPath)) {
+    state.folders.push(newPath);
+    saveState();
+    renderDirectory();
+  }
+}
+
+function copyFileToClipboard(fileId) {
+  state.copiedFileId = fileId;
+  renderDirectory();
+}
+
+function pasteCopiedFile() {
+  if (!state.copiedFileId) return;
+  const orig = state.files.find(f => f.id === state.copiedFileId);
+  if (!orig) return;
+  const copy = JSON.parse(JSON.stringify(orig));
+  copy.id = 'doc_' + Date.now();
+  copy.folder = state.currentFolder;
+  copy.name = orig.folder === state.currentFolder ? '副本_' + orig.name : orig.name;
+  copy.updatedAt = formatNow();
+  state.files.unshift(copy);
+  state.copiedFileId = null;
+  saveState();
+  renderDirectory();
+}
+
+function deleteFileById(fileId) {
+  const target = state.files.find(f => f.id === fileId);
+  if (!target) return;
+  if (!confirm(`确定删除「${target.name}」吗？系统将自动在本地版本控制中保留恢复快照。`)) return;
+  saveSnapshotForFile(target, '删除前自动备份');
+  state.files = state.files.filter(f => f.id !== fileId);
+  saveState();
+  renderDirectory();
+}
+
+function confirmCreateNewFile() {
+  const rawName = document.getElementById('new-file-name').value.trim() || '未命名文稿';
+  const ext = document.getElementById('new-file-ext').value;
+  const scaffold = document.getElementById('new-file-scaffold').value;
+  const cleanName = rawName.endsWith('.' + ext) ? rawName : `${rawName}.${ext}`;
+
+  let content = '';
+  let yaml = [];
+  if (scaffold === 'novel') {
+    yaml = [{ key: 'title', type: 'String', value: rawName }, { key: 'author', type: 'String', value: 'Author' }];
+    content = `# 第一章：序幕\n\n在此输入小说正文……支持 **加粗**、*斜体* 与打字机专注模式。\n`;
+  } else if (scaffold === 'screenplay') {
+    yaml = [{ key: 'Title', type: 'String', value: rawName }, { key: 'Author', type: 'String', value: 'Screenwriter' }];
+    content = `# ACT I\n\nINT. 书房 - NIGHT\n\n!桌上的台灯散发着温暖的光晕。\n\n@主角\n（拿起钢笔）\n故事从这里开始。\n\n> CUT TO:\n`;
+  } else if (scaffold === 'academic') {
+    yaml = [{ key: 'title', type: 'String', value: rawName }, { key: 'biblatexArg', type: 'String', value: 'style=apa' }];
+    content = `# 摘要与研究方法\n\n本文探讨离散系统下的信息熵边界 $H(X)$ 与化学反应平衡 $\\ce{N2 + 3H2 <=> 2NH3}$[@shannon1948]。\n\n| 实验组 | 样本量 | 均值 |\n| :--- | :---: | ---: |\n| A 组 | 120 | 98.4 |\n`;
+  }
+
+  const newDoc = {
+    id: 'doc_' + Date.now(),
+    name: cleanName,
+    ext: ext,
+    folder: state.currentFolder,
+    updatedAt: formatNow(),
+    yaml: yaml,
+    content: content
+  };
+  state.files.unshift(newDoc);
+  saveState();
+  closeModal('new-file-modal');
+  renderDirectory();
+  openFileInEditor(newDoc.id);
+}
+
+function triggerImportFile() {
+  document.getElementById('hidden-file-input').click();
+}
+
+function handleExternalFileImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    let text = e.target.result;
+    let ext = (file.name.split('.').pop() || 'txt').toLowerCase();
+    let finalName = file.name;
+
+    // Import FDX to Fountain automatic converter
+    if (ext === 'fdx') {
+      text = convertFdxXmlToFountain(text);
+      ext = 'fountain';
+      finalName = file.name.replace(/\.fdx$/i, '.fountain');
+    } else if (ext === 'bib') {
+      document.getElementById('bibtex-raw-input').value = text;
+      parseBibtexEntries();
+      openModal('bibtex-modal');
+      return;
+    } else if (ext === 'markdown') {
+      ext = 'md';
+    }
+
+    const newDoc = {
+      id: 'doc_' + Date.now(),
+      name: finalName,
+      ext: ext,
+      folder: state.currentFolder,
+      updatedAt: formatNow(),
+      yaml: [],
+      content: text
+    };
+    state.files.unshift(newDoc);
+    saveState();
+    renderDirectory();
+    openFileInEditor(newDoc.id);
+  };
+  reader.readAsText(file, 'UTF-8');
+  event.target.value = '';
+}
+
+function convertFdxXmlToFountain(xmlString) {
+  try {
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(xmlString, 'text/xml');
+    const paras = xml.querySelectorAll('Paragraph');
+    if (!paras.length) return xmlString;
+    let lines = [];
+    paras.forEach(p => {
+      const type = p.getAttribute('Type') || 'Action';
+      const text = Array.from(p.querySelectorAll('Text')).map(t => t.textContent).join('').trim();
+      if (!text) return;
+      if (type === 'Scene Heading') lines.push('\n' + text.toUpperCase() + '\n');
+      else if (type === 'Character') lines.push('\n@' + text.toUpperCase());
+      else if (type === 'Parenthetical') lines.push(text.startsWith('(') ? text : `(${text})`);
+      else if (type === 'Dialogue') lines.push(text);
+      else if (type === 'Transition') lines.push('\n> ' + text.toUpperCase() + '\n');
+      else lines.push('\n' + text + '\n');
+    });
+    return lines.join('\n').trim();
+  } catch (e) {
+    return xmlString;
+  }
+}
+
+/* ============================================================================
+   3. EDITOR ENGINE: MARKDOWN, FOUNTAIN, TEX, MHCHEM & TYPEWRITER
+   ============================================================================ */
+function openFileInEditor(fileId) {
+  const file = state.files.find(f => f.id === fileId);
+  if (!file) return;
+  state.activeFileId = fileId;
+  state.undoStack = [file.content];
+  state.redoStack = [];
+  state.readOnlyMode = false;
+  state.sourceMode = true;
+
+  document.getElementById('directory-view').classList.remove('active');
+  document.getElementById('editor-view').classList.add('active');
+  document.getElementById('editor-file-title').textContent = file.name;
+
+  const ta = document.getElementById('source-textarea');
+  ta.value = file.content || '';
+  ta.readOnly = false;
+  updateEditorModeButtons();
+  updateLiveStats();
+  renderWysiwygPreview();
+}
+
+function saveAndExitEditor() {
+  const file = getActiveFile();
+  if (file) {
+    file.content = document.getElementById('source-textarea').value;
+    file.updatedAt = formatNow();
+    saveSnapshotForFile(file, '退出编辑器自动快照');
+    saveState();
+  }
+  document.getElementById('editor-view').classList.remove('active');
+  document.getElementById('directory-view').classList.add('active');
+  renderDirectory();
+}
+
+function getActiveFile() {
+  return state.files.find(f => f.id === state.activeFileId);
+}
+
+function renameCurrentFilePrompt() {
+  const file = getActiveFile();
+  if (!file) return;
+  const next = prompt('重命名当前文档：', file.name);
+  if (next && next.trim()) {
+    file.name = next.trim();
+    document.getElementById('editor-file-title').textContent = file.name;
+    saveState();
+  }
+}
+
+function onEditorInput() {
+  const ta = document.getElementById('source-textarea');
+  const file = getActiveFile();
+  if (file) {
+    file.content = ta.value;
+    file.updatedAt = formatNow();
+    if (state.undoStack[state.undoStack.length - 1] !== ta.value) {
+      state.undoStack.push(ta.value);
+      if (state.undoStack.length > 60) state.undoStack.shift();
+    }
+    saveState();
+  }
+  updateLiveStats();
+  checkFountainAutocomplete(ta);
+  if (state.typewriterMode) syncTypewriterScroll();
+}
+
+function handleEditorKeydown(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+    e.preventDefault(); wrapSelection('**', '**');
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
+    e.preventDefault(); wrapSelection('*', '*');
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+    e.preventDefault(); toggleFindReplaceBar();
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+    e.preventDefault(); printOfflineDraftPdf();
+  }
+}
+
+function checkFountainAutocomplete(ta) {
+  const popup = document.getElementById('fountain-prompt-popup');
+  const pos = ta.selectionStart;
+  const textBefore = ta.value.slice(0, pos);
+  const currentLine = textBefore.split('\n').pop();
+
+  if (currentLine === '.' || /^(INT|EXT)$/i.test(currentLine)) {
+    const prompts = ['INT. ', 'EXT. ', 'INT./EXT. ', ' - DAY', ' - NIGHT', ' - DAWN', ' - DUSK'];
+    popup.innerHTML = prompts.map(p => `<span class="prompt-chip" onclick="applyFountainPrompt('${p}')">${p}</span>`).join('');
+    popup.style.display = 'flex';
+  } else if (currentLine === '@') {
+    // Extract existing characters from document
+    const chars = new Set(['主角', '林夏', '陈默', '旁白']);
+    const matches = ta.value.matchAll(/^@([^\n(^]+)/gm);
+    for (const m of matches) {
+      if (m[1] && m[1].trim()) chars.add(m[1].trim());
+    }
+    popup.innerHTML = Array.from(chars).slice(0, 8).map(c => `<span class="prompt-chip" onclick="applyFountainPrompt('${c}\\n')">@${c}</span>`).join('');
+    popup.style.display = 'flex';
+  } else {
+    popup.style.display = 'none';
+  }
+}
+
+function applyFountainPrompt(snippet) {
+  const ta = document.getElementById('source-textarea');
+  const pos = ta.selectionStart;
+  const before = ta.value.slice(0, pos);
+  const after = ta.value.slice(pos);
+  const replacedBefore = snippet.startsWith('INT') || snippet.startsWith('EXT')
+    ? before.replace(/\.$/, '') + snippet
+    : before + snippet;
+  ta.value = replacedBefore + after;
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = replacedBefore.length;
+  document.getElementById('fountain-prompt-popup').style.display = 'none';
+  onEditorInput();
+}
+
+function toggleTypewriterMode() {
+  state.typewriterMode = !state.typewriterMode;
+  const scroller = document.getElementById('editor-scroll-container');
+  const ws = document.getElementById('editor-workspace');
+  scroller.classList.toggle('typewriter-active', state.typewriterMode);
+  ws.classList.toggle('typewriter-on', state.typewriterMode);
+  document.getElementById('btn-typewriter').classList.toggle('active', state.typewriterMode);
+  if (state.typewriterMode) syncTypewriterScroll();
+}
+
+function syncTypewriterScroll() {
+  if (!state.typewriterMode) return;
+  const ta = document.getElementById('source-textarea');
+  const scroller = document.getElementById('editor-scroll-container');
+  const textUpToCursor = ta.value.slice(0, ta.selectionStart);
+  const lineCount = textUpToCursor.split('\n').length;
+  const approxLineHeight = parseFloat(state.settings.fontSize) * parseFloat(state.settings.lineSpacing);
+  scroller.scrollTop = Math.max(0, lineCount * approxLineHeight - 40);
+}
+
+function toggleSourceMode() {
+  state.sourceMode = !state.sourceMode;
+  updateEditorModeButtons();
+}
+
+function toggleReadOnlyMode() {
+  state.readOnlyMode = !state.readOnlyMode;
+  if (state.readOnlyMode) {
+    state.sourceMode = false;
+  } else {
+    state.sourceMode = true;
+  }
+  updateEditorModeButtons();
+}
+
+function updateEditorModeButtons() {
+  const ta = document.getElementById('source-textarea');
+  const prev = document.getElementById('wysiwyg-preview');
+  document.getElementById('btn-readonly').classList.toggle('active', state.readOnlyMode);
+  document.getElementById('btn-source-mode').classList.toggle('active', !state.sourceMode);
+
+  if (state.sourceMode && !state.readOnlyMode) {
+    ta.style.display = 'block';
+    prev.style.display = 'none';
+  } else {
+    renderWysiwygPreview();
+    ta.style.display = 'none';
+    prev.style.display = 'block';
+  }
+}
+
+function renderWysiwygPreview() {
+  const file = getActiveFile();
+  const raw = document.getElementById('source-textarea').value;
+  const prev = document.getElementById('wysiwyg-preview');
+
+  if (file && file.ext === 'fountain') {
+    prev.innerHTML = renderFountainToHtml(raw, file.yaml || []);
+  } else {
+    prev.innerHTML = renderMarkdownToHtml(raw, file ? file.yaml : []);
+  }
+}
+
+function renderFountainToHtml(text, yamlProps) {
+  let html = '';
+  if (yamlProps && yamlProps.length) {
+    html += `<div style="border-bottom:2px solid var(--border); padding-bottom:14px; margin-bottom:24px; text-align:center;">`;
+    yamlProps.forEach(p => {
+      if (p.key.toLowerCase() === 'title') html += `<h1 style="margin:4px 0;">${escapeHtml(p.value)}</h1>`;
+      else html += `<div style="font-size:13px; color:var(--text-secondary);">${escapeHtml(p.key)}: ${escapeHtml(p.value)}</div>`;
+    });
+    html += `</div>`;
+  }
+
+  const lines = text.split('\n');
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    if (!line) { i++; continue; }
+    if (line === '===') {
+      html += `<div class="page-break-visual"><span>PAGE BREAK</span></div>`;
+    } else if (line.startsWith('# ')) {
+      html += `<h1>${escapeHtml(line.slice(2))}</h1>`;
+    } else if (line.startsWith('## ')) {
+      html += `<h2>${escapeHtml(line.slice(3))}</h2>`;
+    } else if (/^(INT\.|EXT\.|INT\/EXT\.|\.)/i.test(line)) {
+      html += `<div class="fountain-scene">${escapeHtml(line.replace(/^\./, ''))}</div>`;
+    } else if (line.startsWith('>') || /TO:$/.test(line)) {
+      html += `<div class="fountain-transition">${escapeHtml(line.replace(/^>\s*/, ''))}</div>`;
+    } else if (line.startsWith('~')) {
+      html += `<div class="fountain-lyric">♪ ${escapeHtml(line.slice(1))}</div>`;
+    } else if (line.startsWith('@') || (/^[A-Z0-9\u4e00-\u9fa5]{2,20}(\s*\^)?$/.test(line) && i + 1 < lines.length && lines[i+1].trim())) {
+      const charName = line.replace(/^@/, '').replace(/\^$/, '').trim();
+      const isDual = line.endsWith('^');
+      let blockHtml = `<div class="fountain-character">${escapeHtml(charName)}${isDual ? ' <span class="badge-pill">同屏对白</span>' : ''}</div>`;
+      i++;
+      while (i < lines.length && lines[i].trim()) {
+        const sub = lines[i].trim();
+        if (sub.startsWith('(') || sub.startsWith('（')) {
+          blockHtml += `<div class="fountain-parenthetical">${escapeHtml(sub)}</div>`;
+        } else {
+          blockHtml += `<div class="fountain-dialogue">${escapeHtml(sub)}</div>`;
+        }
+        i++;
+      }
+      html += blockHtml;
+      continue;
+    } else {
+      html += `<p>${escapeHtml(line.replace(/^!/, ''))}</p>`;
+    }
+    i++;
+  }
+  return html;
+}
+
+function renderMarkdownToHtml(md, yamlProps) {
+  let out = '';
+  if (yamlProps && yamlProps.length) {
+    const wm = yamlProps.find(p => p.key === 'watermark');
+    if (wm && wm.value) {
+      out += `<div style="float:right; font-size:11px; padding:2px 8px; border:1px solid var(--accent); color:var(--accent); border-radius:4px;">WATERMARK: ${escapeHtml(wm.value)}</div>`;
+    }
+  }
+
+  let html = escapeHtml(md);
+
+  // Page Breaks
+  html = html.replace(/(\\pagebreak|\\newpage|^===$)/gm, `<div class="page-break-visual"><span>PAGE BREAK (分页符)</span></div>`);
+
+  // Code blocks (Mermaid, Markmap, ABC, ChordPro, SMILES, or general)
+  html = html.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (m, lang, code) => {
+    const tag = lang ? `<div style="font-size:11px; color:var(--accent); font-weight:700; margin-bottom:4px;">[${lang.toUpperCase()} 插件代码块]</div>` : '';
+    return `<pre>${tag}<code>${code.trim()}</code></pre>`;
+  });
+
+  // Block TeX & mhChem
+  html = html.replace(/\$\$([\s\S]*?)\$\$/g, (m, eq) => {
+    return `<div class="math-block">${formatTexAndMhchem(eq.trim())}</div>`;
+  });
+
+  // Inline mhChem & TeX
+  html = html.replace(/\$([^\$\n]+)\$/g, (m, eq) => {
+    return `<span class="math-chip">${formatTexAndMhchem(eq)}</span>`;
+  });
+
+  // Markdown Tables
+  html = html.replace(/^\|(.+)\|\n\|([-:\s|]+)\|\n((?:\|.*\|\n?)+)/gm, (m, headerRow, alignRow, bodyRows) => {
+    const headers = headerRow.split('|').map(s => s.trim()).filter(Boolean);
+    const aligns = alignRow.split('|').map(s => s.trim()).filter(Boolean).map(a => {
+      if (a.startsWith(':') && a.endsWith(':')) return 'center';
+      if (a.endsWith(':')) return 'right';
+      return 'left';
+    });
+    let tbl = '<table><thead><tr>';
+    headers.forEach((h, idx) => {
+      tbl += `<th style="text-align:${aligns[idx] || 'left'}">${h}</th>`;
+    });
+    tbl += '</tr></thead><tbody>';
+    bodyRows.trim().split('\n').forEach(row => {
+      const cells = row.replace(/^\||\|$/g, '').split('|').map(s => s.trim());
+      tbl += '<tr>' + cells.map((c, idx) => `<td style="text-align:${aligns[idx] || 'left'}">${c}</td>`).join('') + '</tr>';
+    });
+    tbl += '</tbody></table>';
+    return tbl;
+  });
+
+  // Headings
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+  // Blockquotes
+  html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+  // Task Lists
+  html = html.replace(/^- \[x\] (.+)$/gm, '<div><input type="checkbox" checked disabled> <s>$1</s></div>');
+  html = html.replace(/^- \[ \] (.+)$/gm, '<div><input type="checkbox" disabled> $1</div>');
+
+  // Inline formatting
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  // Citations & Footnotes
+  html = html.replace(/\[@([a-zA-Z0-9_-]+)\]/g, '<span class="badge-pill">📚 @$1</span>');
+  html = html.replace(/\[\^([0-9a-zA-Z]+)\]/g, '<sup style="color:var(--accent); font-weight:700;">[$1]</sup>');
+
+  // Paragraphs
+  html = html.split('\n\n').map(block => {
+    if (block.trim().startsWith('<')) return block;
+    return `<p>${block.replace(/\n/g, '<br>')}</p>`;
+  }).join('\n');
+
+  return out + html;
+}
+
+function formatTexAndMhchem(expr) {
+  return expr
+    .replace(/\\ce\{([^}]+)\}/g, '$1')
+    .replace(/<=>/g, ' ⇌ ')
+    .replace(/->\[([^\]]*)\]\[([^\]]*)\]/g, ' —($1, $2)→ ')
+    .replace(/->\[([^\]]*)\]/g, ' —($1)→ ')
+    .replace(/->/g, ' → ')
+    .replace(/\\int_\{([^}]+)\}\^\{([^}]+)\}/g, '∫_$1^$2')
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)')
+    .replace(/\\sqrt\{([^}]+)\}/g, '√($1)')
+    .replace(/\\pi/g, 'π')
+    .replace(/\\infty/g, '∞')
+    .replace(/\^(\d+|\{[^}]+\})/g, '<sup>$1</sup>')
+    .replace(/([A-Za-z])(\d+)/g, '$1<sub>$2</sub>')
+    .replace(/[{}]/g, '');
+}
+
+/* ============================================================================
+   4. TOOLBAR HELPERS, YAML EDITOR, BIBTEX & SNAPSHOTS
+   ============================================================================ */
+function wrapSelection(prefix, suffix) {
+  const ta = document.getElementById('source-textarea');
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  const selected = ta.value.slice(start, end) || '文本';
+  ta.setRangeText(prefix + selected + suffix, start, end, 'select');
+  ta.focus();
+  onEditorInput();
+}
+
+function insertLinePrefix(prefix) {
+  const ta = document.getElementById('source-textarea');
+  const start = ta.selectionStart;
+  const lineStart = ta.value.lastIndexOf('\n', start - 1) + 1;
+  ta.setRangeText(prefix, lineStart, lineStart, 'end');
+  ta.focus();
+  onEditorInput();
+}
+
+function insertSnippet(snippet) {
+  const ta = document.getElementById('source-textarea');
+  const pos = ta.selectionStart;
+  ta.setRangeText(snippet, pos, pos, 'end');
+  closeModal('insert-modal');
+  ta.focus();
+  onEditorInput();
+}
+
+function insertGeneratedTable() {
+  const rows = parseInt(document.getElementById('tbl-rows').value) || 3;
+  const cols = parseInt(document.getElementById('tbl-cols').value) || 3;
+  const align = document.getElementById('tbl-align').value;
+  const alignToken = align === 'center' ? ':---:' : (align === 'right' ? '---:' : ':---');
+
+  let header = '| ' + Array.from({length: cols}, (_, i) => `列标题 ${i+1}`).join(' | ') + ' |';
+  let sep = '| ' + Array.from({length: cols}, () => alignToken).join(' | ') + ' |';
+  let body = Array.from({length: rows}, (_, r) =>
+    '| ' + Array.from({length: cols}, (_, c) => `数据 ${r+1}-${c+1}`).join(' | ') + ' |'
+  ).join('\n');
+
+  insertSnippet(`\n${header}\n${sep}\n${body}\n`);
+}
+
+function insertFootnotePrompt() {
+  const refName = prompt('请输入脚注标识名（如 1 或 note1）：', '1');
+  if (!refName) return;
+  const ta = document.getElementById('source-textarea');
+  const pos = ta.selectionStart;
+  ta.setRangeText(`[^${refName}]`, pos, pos, 'end');
+  ta.value += `\n\n[^${refName}]: 在此填写脚注说明内容。`;
+  closeModal('insert-modal');
+  onEditorInput();
+}
+
+function insertCodeBlock(lang, meta, sample) {
+  insertSnippet(`\n\`\`\`${lang}\n${sample}\n\`\`\`\n`);
+}
+
+function editorUndo() {
+  if (state.undoStack.length <= 1) return;
+  const current = state.undoStack.pop();
+  state.redoStack.push(current);
+  const prev = state.undoStack[state.undoStack.length - 1];
+  document.getElementById('source-textarea').value = prev;
+  onEditorInput();
+}
+
+function editorRedo() {
+  if (!state.redoStack.length) return;
+  const next = state.redoStack.pop();
+  state.undoStack.push(next);
+  document.getElementById('source-textarea').value = next;
+  onEditorInput();
+}
+
+function openYamlOrFountainProps() {
+  const file = getActiveFile();
+  if (!file) return;
+  document.getElementById('yaml-modal-title').textContent =
+    file.ext === 'fountain' ? '🎬 Fountain 剧本扉页属性 (Title Page Properties)' : '⚙ YAML Front Matter 元数据编辑器';
+  const container = document.getElementById('yaml-rows-container');
+  container.innerHTML = '';
+  const list = file.yaml && file.yaml.length ? file.yaml : [
+    { key: 'title', type: 'String', value: file.name.replace(/\.[^.]+$/, '') },
+    { key: 'author', type: 'String', value: '' }
+  ];
+  list.forEach(item => addYamlRow(item.key, item.type || 'String', item.value));
+  openModal('yaml-modal');
+}
+
+function addYamlRow(key, type, val) {
+  const container = document.getElementById('yaml-rows-container');
+  const row = document.createElement('div');
+  row.className = 'yaml-row';
+  row.innerHTML = `
+    <input type="text" class="yaml-k compact-input" placeholder="Key (如 title)" value="${escapeHtml(key)}">
+    <select class="yaml-t compact-input">
+      ${['String','Number','Boolean','Array','Object','Null'].map(t => `<option value="${t}" ${t===type?'selected':''}>${t}</option>`).join('')}
+    </select>
+    <input type="text" class="yaml-v compact-input" placeholder="Value" value="${escapeHtml(val)}">
+    <button class="small-btn" onclick="this.parentElement.remove()">✕</button>
+  `;
+  container.appendChild(row);
+}
+
+function saveYamlToDocument() {
+  const file = getActiveFile();
+  if (!file) return;
+  const rows = document.querySelectorAll('#yaml-rows-container .yaml-row');
+  const updated = [];
+  rows.forEach(r => {
+    const k = r.querySelector('.yaml-k').value.trim();
+    const t = r.querySelector('.yaml-t').value;
+    const v = r.querySelector('.yaml-v').value;
+    if (k) updated.push({ key: k, type: t, value: t === 'Null' ? 'null' : v });
+  });
+  file.yaml = updated;
+  saveState();
+  closeModal('yaml-modal');
+  renderWysiwygPreview();
+}
+
+function parseBibtexEntries() {
+  const raw = document.getElementById('bibtex-raw-input').value;
+  const listEl = document.getElementById('bibtex-parsed-list');
+  const matches = [...raw.matchAll(/@\w+\{\s*([^,\s]+)\s*,([\s\S]*?)\n\}/g)];
+  listEl.innerHTML = matches.map(m => {
+    const citeKey = m[1];
+    const body = m[2];
+    const titleMatch = body.match(/title\s*=\s*\{([^}]+)\}/i);
+    const title = titleMatch ? titleMatch[1] : citeKey;
+    return `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; background:var(--bg-secondary); border-radius:6px;">
+        <div>
+          <strong style="color:var(--accent);">@${escapeHtml(citeKey)}</strong>
+          <div style="font-size:12px; color:var(--text-secondary);">${escapeHtml(title)}</div>
+        </div>
+        <button class="small-btn primary" onclick="insertSnippet('[@${citeKey}]'); closeModal('bibtex-modal');">插入引用</button>
+      </div>`;
+  }).join('');
+}
+
+/* ============================================================================
+   5. WORD CHARACTER COUNTER, READABILITY INSPECTOR, OUTLINE & FIND/REPLACE
+   ============================================================================ */
+function computeDocumentStats(text) {
+  const clean = text.trim();
+  const chars = text.length;
+  const cjkChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+  const enWords = (text.replace(/[\u4e00-\u9fa5]/g, ' ').trim().match(/\b\w+\b/g) || []).length;
+  const totalWords = cjkChars + enWords;
+  const sentences = Math.max(1, (text.match(/[。！？.!?]+/g) || []).length);
+  const readingTimeMin = Math.max(1, Math.ceil(totalWords / 250));
+  const avgWordLen = enWords > 0 ? ((text.replace(/\s+/g, '').length) / Math.max(1, totalWords)).toFixed(1) : '1.8';
+  const avgSentLen = (totalWords / sentences).toFixed(1);
+
+  // Readability score (0-100 scale adapted for bilingual text)
+  const rawScore = Math.max(15, Math.min(98, Math.round(100 - (parseFloat(avgSentLen) * 1.4))));
+  let level = '极佳 (畅销小说级)';
+  if (rawScore < 50) level = '深奥 (学术专著级)';
+  else if (rawScore < 70) level = '标准 (商业报告级)';
+
+  return { totalWords, chars, readingTimeMin, rawScore, level, avgWordLen, avgSentLen };
+}
+
+function updateLiveStats() {
+  const text = document.getElementById('source-textarea').value;
+  const s = computeDocumentStats(text);
+  document.getElementById('editor-live-counter').textContent =
+    `${s.totalWords} 词 · ${s.chars} 字符 · 预计阅读 ${s.readingTimeMin} 分钟 · 可读性 ${s.rawScore}分`;
+}
+
+function openStatsModal() {
+  const text = document.getElementById('source-textarea').value;
+  const s = computeDocumentStats(text);
+  document.getElementById('stats-boxes').innerHTML = `
+    <div class="stat-box"><div class="stat-val">${s.totalWords}</div><div class="stat-label">Words (总词数 / 中英混合)</div></div>
+    <div class="stat-box"><div class="stat-val">${s.chars}</div><div class="stat-label">Characters (总字符数)</div></div>
+    <div class="stat-box"><div class="stat-val">${s.readingTimeMin} min</div><div class="stat-label">Reading Time (预计阅读时长)</div></div>
+    <div class="stat-box"><div class="stat-val">${s.rawScore} / 100</div><div class="stat-label">Readability (${s.level})</div></div>
+    <div class="stat-box"><div class="stat-val">${s.avgWordLen}</div><div class="stat-label">Average Word Length (平均词长)</div></div>
+    <div class="stat-box"><div class="stat-val">${s.avgSentLen}</div><div class="stat-label">Average Sentence Length (平均句长)</div></div>
+  `;
+  openModal('stats-modal');
+}
+
+function openOutlineModal() {
+  const ta = document.getElementById('source-textarea');
+  const lines = ta.value.split('\n');
+  const items = [];
+  lines.forEach((line, idx) => {
+    if (/^(#{1,3}\s+|INT\.|EXT\.)/i.test(line.trim())) {
+      items.push({ lineIndex: idx, text: line.trim() });
+    }
+  });
+  const body = document.getElementById('outline-list-body');
+  if (!items.length) {
+    body.innerHTML = `<div style="color:var(--text-secondary);">当前文档暂无 # 标题或 INT./EXT. 场次标记</div>`;
+  } else {
+    body.innerHTML = items.map((it, i) => `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:var(--bg-secondary); border-radius:8px; cursor:pointer;" onclick="jumpToLine(${it.lineIndex})">
+        <span style="font-weight:600; font-size:13px;">${escapeHtml(it.text)}</span>
+        <span style="font-size:11px; color:var(--text-secondary);">第 ${it.lineIndex + 1} 行 ›</span>
+      </div>`).join('');
+  }
+  openModal('outline-modal');
+}
+
+function jumpToLine(lineIndex) {
+  closeModal('outline-modal');
+  const ta = document.getElementById('source-textarea');
+  const lines = ta.value.split('\n');
+  let charPos = 0;
+  for (let i = 0; i < lineIndex; i++) charPos += lines[i].length + 1;
+  state.sourceMode = true;
+  state.readOnlyMode = false;
+  updateEditorModeButtons();
+  ta.focus();
+  ta.setSelectionRange(charPos, charPos + (lines[lineIndex] || '').length);
+}
+
+function toggleFindReplaceBar() {
+  const bar = document.getElementById('find-replace-bar');
+  bar.classList.toggle('active');
+  if (bar.classList.contains('active')) {
+    document.getElementById('find-input').focus();
+  }
+}
+
+function highlightFindMatches() {
+  const q = document.getElementById('find-input').value;
+  const text = document.getElementById('source-textarea').value;
+  if (!q) {
+    document.getElementById('find-count-label').textContent = '0 处';
+    return;
+  }
+  const count = text.split(q).length - 1;
+  document.getElementById('find-count-label').textContent = `${count} 处`;
+}
+
+function replaceNextMatch() {
+  const q = document.getElementById('find-input').value;
+  const r = document.getElementById('replace-input').value;
+  if (!q) return;
+  const ta = document.getElementById('source-textarea');
+  const idx = ta.value.indexOf(q);
+  if (idx !== -1) {
+    ta.value = ta.value.slice(0, idx) + r + ta.value.slice(idx + q.length);
+    onEditorInput();
+    highlightFindMatches();
+  }
+}
+
+function replaceAllMatches() {
+  const q = document.getElementById('find-input').value;
+  const r = document.getElementById('replace-input').value;
+  if (!q) return;
+  const ta = document.getElementById('source-textarea');
+  ta.value = ta.value.split(q).join(r);
+  onEditorInput();
+  highlightFindMatches();
+}
+
+/* ============================================================================
+   6. VERSION CONTROL & LOCAL SNAPSHOTS
+   ============================================================================ */
+function saveSnapshotForFile(file, reason) {
+  state.snapshots.unshift({
+    snapId: 'snap_' + Date.now(),
+    fileId: file.id,
+    fileName: file.name,
+    ext: file.ext,
+    reason: reason || '手动快照',
+    timestamp: formatNow(),
+    content: file.content,
+    yaml: file.yaml || []
+  });
+  if (state.snapshots.length > 35) state.snapshots.pop();
+  saveState();
+}
+
+function takeManualSnapshot() {
+  const file = getActiveFile();
+  if (!file) return;
+  file.content = document.getElementById('source-textarea').value;
+  saveSnapshotForFile(file, '编辑器手动存快照');
+  alert('已保存当前版本至本地快照库！可随时在历史快照中回滚。');
+}
+
+function renderSnapshotsModal() {
+  const body = document.getElementById('snapshots-list-body');
+  if (!state.snapshots.length) {
+    body.innerHTML = `<div style="color:var(--text-secondary);">暂无历史快照记录。在编辑文档时点击底部「📸 存快照」或退出编辑器时将自动生成快照。</div>`;
+    return;
+  }
+  body.innerHTML = state.snapshots.map(s => `
+    <div style="padding:10px; background:var(--bg-secondary); border-radius:8px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:8px;">
+      <div style="min-width:0;">
+        <div style="font-weight:600; font-size:13px;">${escapeHtml(s.fileName)} <span class="badge-pill">${escapeHtml(s.reason)}</span></div>
+        <div style="font-size:11px; color:var(--text-secondary); margin-top:2px;">${s.timestamp} · ${(s.content||'').length} 字符</div>
+      </div>
+      <button class="small-btn primary" onclick="restoreSnapshot('${s.snapId}')">回滚恢复</button>
+    </div>`).join('');
+}
+
+function restoreSnapshot(snapId) {
+  const snap = state.snapshots.find(s => s.snapId === snapId);
+  if (!snap) return;
+  let existing = state.files.find(f => f.id === snap.fileId);
+  if (existing) {
+    existing.content = snap.content;
+    existing.yaml = snap.yaml || [];
+    existing.updatedAt = formatNow();
+  } else {
+    existing = {
+      id: snap.fileId,
+      name: snap.fileName,
+      ext: snap.ext || 'md',
+      folder: state.currentFolder,
+      updatedAt: formatNow(),
+      yaml: snap.yaml || [],
+      content: snap.content
+    };
+    state.files.unshift(existing);
+  }
+  saveState();
+  closeModal('snapshots-modal');
+  renderDirectory();
+  openFileInEditor(existing.id);
+}
+
+/* ============================================================================
+   7. TYPOGRAPHY, THEMES, NIGHT LIGHT & CUSTOM LOCAL FONT UPLOAD
+   ============================================================================ */
+function applyTypographySettings() {
+  const theme = document.getElementById('setting-theme').value;
+  const nl = document.getElementById('setting-nightlight').checked;
+  const nlInt = document.getElementById('setting-nightlight-intensity').value;
+  const font = document.getElementById('setting-font').value;
+  const size = document.getElementById('setting-fontsize').value;
+  const line = document.getElementById('setting-linespacing').value;
+  const margin = document.getElementById('setting-margin').value;
+  const lig = document.getElementById('setting-ligatures').checked;
+
+  state.settings = { theme, nightLight: nl, nightLightIntensity: nlInt, fontFamily: font, fontSize: size, lineSpacing: line, margin, ligatures: lig };
+
+  document.documentElement.setAttribute('data-theme', theme);
+  document.documentElement.style.setProperty('--editor-font', font);
+  document.documentElement.style.setProperty('--editor-font-size', size);
+  document.documentElement.style.setProperty('--editor-line-height', line);
+  document.documentElement.style.setProperty('--editor-margin', margin);
+  document.documentElement.style.setProperty('--editor-ligatures', lig ? 'normal' : 'none');
+
+  const overlay = document.getElementById('night-light-overlay');
+  overlay.style.display = nl ? 'block' : 'none';
+  overlay.style.background = `rgba(255, 148, 42, ${nlInt / 100})`;
+  saveState();
+}
+
+function handleCustomFontUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const fontFace = new FontFace('CustomUploadedFont', e.target.result);
+      await fontFace.load();
+      document.fonts.add(fontFace);
+      document.getElementById('setting-font').value = 'CustomUploadedFont, serif';
+      document.getElementById('custom-font-status').textContent = `✓ 已成功加载本地字体：${file.name}`;
+      applyTypographySettings();
+    } catch (err) {
+      alert('字体文件解析失败，请选择有效的 .ttf / .otf / .woff2 字体文件。');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ============================================================================
+   8. OFFLINE MULTI-FORMAT EXPORTERS (.DOCX, .FDX, .EPUB, .ZIP LATEX, PDF, HTML)
+   ============================================================================ */
+// Pure JS CRC32 + Uncompressed ZIP archive builder (enables 100% offline .docx, .epub, .zip generation)
+function buildZipBlob(filesEntries, mimeType) {
+  const crcTable = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    crcTable[n] = c;
+  }
+  function crc32(bytes) {
+    let crc = 0 ^ (-1);
+    for (let i = 0; i < bytes.length; i++) {
+      crc = (crc >>> 8) ^ crcTable[(crc ^ bytes[i]) & 0xFF];
+    }
+    return (crc ^ (-1)) >>> 0;
+  }
+
+  const encoder = new TextEncoder();
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+
+  filesEntries.forEach(entry => {
+    const nameBytes = encoder.encode(entry.path);
+    const dataBytes = typeof entry.content === 'string' ? encoder.encode(entry.content) : entry.content;
+    const crc = crc32(dataBytes);
+    const size = dataBytes.length;
+
+    const localHeader = new Uint8Array(30 + nameBytes.length);
+    const lv = new DataView(localHeader.buffer);
+    lv.setUint32(0, 0x04034b50, true);
+    lv.setUint16(4, 20, true);
+    lv.setUint16(6, 0, true);
+    lv.setUint16(8, 0, true); // Store (0 = uncompressed)
+    lv.setUint16(10, 0, true);
+    lv.setUint16(12, 0, true);
+    lv.setUint32(14, crc, true);
+    lv.setUint32(18, size, true);
+    lv.setUint32(22, size, true);
+    lv.setUint16(26, nameBytes.length, true);
+    lv.setUint16(28, 0, true);
+    localHeader.set(nameBytes, 30);
+
+    const centralHeader = new Uint8Array(46 + nameBytes.length);
+    const cv = new DataView(centralHeader.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint16(4, 20, true);
+    cv.setUint16(6, 20, true);
+    cv.setUint16(8, 0, true);
+    cv.setUint16(10, 0, true);
+    cv.setUint16(12, 0, true);
+    cv.setUint16(14, 0, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, size, true);
+    cv.setUint32(24, size, true);
+    cv.setUint16(28, nameBytes.length, true);
+    cv.setUint16(30, 0, true);
+    cv.setUint16(32, 0, true);
+    cv.setUint16(34, 0, true);
+    cv.setUint16(36, 0, true);
+    cv.setUint32(38, 0, true);
+    cv.setUint32(42, offset, true);
+    centralHeader.set(nameBytes, 46);
+
+    localParts.push(localHeader, dataBytes);
+    centralParts.push(centralHeader);
+    offset += localHeader.length + size;
+  });
+
+  const centralSize = centralParts.reduce((s, p) => s + p.length, 0);
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(4, 0, true);
+  ev.setUint16(6, 0, true);
+  ev.setUint16(8, filesEntries.length, true);
+  ev.setUint16(10, filesEntries.length, true);
+  ev.setUint32(12, centralSize, true);
+  ev.setUint32(16, offset, true);
+  ev.setUint16(20, 0, true);
+
+  return new Blob([...localParts, ...centralParts, eocd], { type: mimeType || 'application/zip' });
+}
+
+function triggerBlobDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 500);
+}
+
+function printOfflineDraftPdf() {
+  closeModal('export-modal');
+  renderWysiwygPreview();
+  window.print();
+}
+
+function exportPlainSource(targetExt) {
+  const file = getActiveFile();
+  const baseName = (file ? file.name : 'document').replace(/\.[^.]+$/, '');
+  const content = document.getElementById('source-textarea').value;
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  triggerBlobDownload(blob, `${baseName}.${targetExt}`);
+}
+
+function exportToDocx() {
+  const file = getActiveFile();
+  const baseName = (file ? file.name : 'document').replace(/\.[^.]+$/, '');
+  const raw = document.getElementById('source-textarea').value;
+  const paragraphsXml = raw.split('\n').map(line => {
+    const clean = escapeXml(line.replace(/^[#*>-]+\s*/, ''));
+    return `<w:p><w:r><w:t>${clean}</w:t></w:r></w:p>`;
+  }).join('');
+
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`;
+
+  const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+
+  const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>${paragraphsXml}</w:body>
+</w:document>`;
+
+  const blob = buildZipBlob([
+    { path: '[Content_Types].xml', content: contentTypes },
+    { path: '_rels/.rels', content: rels },
+    { path: 'word/document.xml', content: docXml }
+  ], 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+
+  triggerBlobDownload(blob, `${baseName}.docx`);
+}
+
+function exportToFdx() {
+  const file = getActiveFile();
+  const baseName = (file ? file.name : 'screenplay').replace(/\.[^.]+$/, '');
+  const lines = document.getElementById('source-textarea').value.split('\n');
+  let pXml = '';
+  lines.forEach(l => {
+    const t = l.trim();
+    if (!t) return;
+    let type = 'Action';
+    let clean = t;
+    if (/^(INT\.|EXT\.|\.)/i.test(t)) { type = 'Scene Heading'; clean = t.replace(/^\./, ''); }
+    else if (t.startsWith('@')) { type = 'Character'; clean = t.slice(1).replace(/\^$/, '').trim(); }
+    else if (t.startsWith('(') || t.startsWith('（')) { type = 'Parenthetical'; }
+    else if (t.startsWith('>') || /TO:$/.test(t)) { type = 'Transition'; clean = t.replace(/^>\s*/, ''); }
+    pXml += `    <Paragraph Type="${type}"><Text>${escapeXml(clean)}</Text></Paragraph>\n`;
+  });
+
+  const fdx = `<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<FinalDraft DocumentType="Script" Template="No" Version="4">
+  <Content>
+${pXml}  </Content>
+</FinalDraft>`;
+  const blob = new Blob([fdx], { type: 'application/xml;charset=utf-8' });
+  triggerBlobDownload(blob, `${baseName}.fdx`);
+}
+
+function exportToEpub() {
+  const file = getActiveFile();
+  const baseName = (file ? file.name : 'ebook').replace(/\.[^.]+$/, '');
+  const yaml = (file && file.yaml) || [];
+  const title = (yaml.find(p => p.key.toLowerCase() === 'title') || {}).value || baseName;
+  const author = (yaml.find(p => p.key.toLowerCase() === 'author') || {}).value || 'JotterPad Writer';
+  const bodyHtml = renderMarkdownToHtml(document.getElementById('source-textarea').value, []);
+
+  const containerXml = `<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+</container>`;
+
+  const contentOpf = `<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookId" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="BookId">urn:uuid:${Date.now()}</dc:identifier>
+    <dc:title>${escapeXml(title)}</dc:title>
+    <dc:creator>${escapeXml(author)}</dc:creator>
+    <dc:language>zh-CN</dc:language>
+  </metadata>
+  <manifest>
+    <item id="ch1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="ch1"/></spine>
+</package>`;
+
+  const chapterXhtml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><title>${escapeXml(title)}</title></head>
+<body>${bodyHtml}</body>
+</html>`;
+
+  const blob = buildZipBlob([
+    { path: 'mimetype', content: 'application/epub+zip' },
+    { path: 'META-INF/container.xml', content: containerXml },
+    { path: 'OEBPS/content.opf', content: contentOpf },
+    { path: 'OEBPS/chapter1.xhtml', content: chapterXhtml }
+  ], 'application/epub+zip');
+
+  triggerBlobDownload(blob, `${baseName}.epub`);
+}
+
+function exportToLatexZip() {
+  const file = getActiveFile();
+  const baseName = (file ? file.name : 'latex_project').replace(/\.[^.]+$/, '');
+  const raw = document.getElementById('source-textarea').value;
+  const bib = document.getElementById('bibtex-raw-input').value;
+
+  const mainTex = file && file.ext === 'tex' ? raw : `\\documentclass[12pt,a4paper]{article}
+\\usepackage{xeCJK}
+\\usepackage{amsmath,amssymb}
+\\usepackage[version=4]{mhchem}
+\\title{${baseName}}
+\\begin{document}
+\\maketitle
+
+${raw}
+
+\\end{document}`;
+
+  const blob = buildZipBlob([
+    { path: 'main.tex', content: mainTex },
+    { path: 'references.bib', content: bib }
+  ], 'application/zip');
+
+  triggerBlobDownload(blob, `${baseName}_LaTeX_Project.zip`);
+}
+
+async function copyAsHtmlToClipboard() {
+  const html = renderMarkdownToHtml(document.getElementById('source-textarea').value, []);
+  try {
+    await navigator.clipboard.writeText(html);
+    alert('已将 HTML 源码复制到剪贴板！可直接粘贴至邮件或第三方编辑器。');
+  } catch (e) {
+    prompt('请复制以下 HTML 代码：', html);
+  }
+}
+
+async function shareHtmlViaSystem() {
+  const file = getActiveFile();
+  const html = renderMarkdownToHtml(document.getElementById('source-textarea').value, []);
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: file ? file.name : 'JotterPad 文稿',
+        text: document.getElementById('source-textarea').value
+      });
+    } catch (e) {}
+  } else {
+    copyAsHtmlToClipboard();
+  }
+}
+
+/* ============================================================================
+   9. UTILITIES & MODAL CONTROLLERS
+   ============================================================================ */
+function openModal(id) {
+  if (id === 'snapshots-modal') renderSnapshotsModal();
+  document.getElementById(id).classList.add('open');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function escapeXml(str) {
+  return escapeHtml(str).replace(/'/g, '&apos;');
+}
+
+function formatNow() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+window.addEventListener('DOMContentLoaded', loadState);
+</script>
+</body>
+</html>
